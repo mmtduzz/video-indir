@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video İndir</title>
+<style>
+  :root { --bg: #f5f5f4; --card: #fff; --text: #1c1917; --muted: #78716c; --accent: #16a34a; --line: #e7e5e4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0c0a09; --card: #1c1917; --text: #fafaf9; --muted: #a8a29e; --line: #292524; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, system-ui, sans-serif; }
+  main { max-width: 480px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 8px 0 16px; word-break: break-word; }
+  .previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .previews img, .previews video { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 12px; background: var(--line); }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 16px 0 6px; }
+  .bar div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #status { color: var(--muted); font-size: 14px; min-height: 20px; }
+  button { width: 100%; border: 0; border-radius: 14px; padding: 16px; font: 600 17px/1 inherit; margin-top: 12px; cursor: pointer; }
+  #saveAll { background: var(--accent); color: #fff; }
+  #saveAll:disabled { opacity: .4; }
+  .secondary { background: var(--card); color: var(--text); border: 1px solid var(--line); font-weight: 500; font-size: 15px; padding: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Video</h1>
+  <div class="previews">
+    <img id="coverPreview" alt="Kapak">
+    <video id="videoPreview" controls playsinline muted></video>
+  </div>
+  <div class="bar"><div id="progress"></div></div>
+  <div id="status">Hazırlanıyor…</div>
+  <button id="saveAll" disabled>Galeriye Kaydet</button>
+  <div class="row">
+    <button class="secondary" id="saveCover" disabled>Yalnız kapak</button>
+    <button class="secondary" id="saveVideo" disabled>Yalnız video</button>
+  </div>
+  <p class="hint">Açılan menüde <b>“2 Öğeyi Kaydet”</b> seç. Kapak ve video Fotoğraflar'a kaydedilir.</p>
+</main>
+<script>
+// Drive API anahtarı. Google Cloud'da yalnız Drive API ve bu sitenin adresiyle sınırla.
+const API_KEY = 'BURAYA_API_KEY';
+
+const params = new URLSearchParams(location.search);
+const videoId = params.get('v');
+const coverId = params.get('k');
+const name = params.get('n') || 'video';
+const $ = id => document.getElementById(id);
+const files = {};
+
+$('title').textContent = name;
+if (coverId) $('coverPreview').src = 'https://drive.google.com/thumbnail?id=' + coverId + '&sz=w800';
+else $('coverPreview').remove();
+
+// Drive hatasını kullanıcının anlayacağı mesaja çevirir. Kod, ekran görüntüsünden sorunu bulmak içindir.
+async function driveError(res) {
+  let reason = '';
+  try { reason = (await res.json()).error.errors[0].reason; } catch (e) {}
+  const messages = {
+    downloadQuotaExceeded: 'Bu video bugün çok indirildi. Birkaç saat sonra tekrar dene.',
+    dailyLimitExceeded: 'Günlük indirme sınırı doldu. Yarın tekrar dene.',
+    keyInvalid: 'Sayfa anahtarı geçersiz. Yöneticiye bildir.',
+    notFound: 'Video bulunamadı ya da silinmiş. Yöneticiye bildir.',
+    forbidden: 'Videoya erişim kapalı. Yöneticiye bildir.'
+  };
+  const text = messages[reason] || (res.status === 404 ? messages.notFound : 'İndirme başarısız. Yöneticiye bildir.');
+  return new Error(text + ' (Kod: ' + res.status + (reason ? ' ' + reason : '') + ')');
+}
+
+async function download(id, onProgress) {
+  const base = 'https://www.googleapis.com/drive/v3/files/' + id;
+  const metaRes = await fetch(base + '?fields=name,mimeType,size&key=' + API_KEY);
+  if (!metaRes.ok) throw await driveError(metaRes);
+  const meta = await metaRes.json();
+  const res = await fetch(base + '?alt=media&key=' + API_KEY);
+  if (!res.ok) throw await driveError(res);
+  const total = Number(meta.size) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    onProgress(loaded, total);
+  }
+  return new File(chunks, meta.name, { type: meta.mimeType });
+}
+
+async function prepare() {
+  if (!videoId) { $('status').textContent = 'Bağlantı hatalı: video bulunamadı.'; return; }
+  const progress = { video: [0, 0], cover: [0, 0] };
+  const update = () => {
+    const loaded = progress.video[0] + progress.cover[0];
+    const total = progress.video[1] + progress.cover[1];
+    const pct = total ? Math.round(loaded / total * 100) : 0;
+    $('progress').style.width = pct + '%';
+    $('status').textContent = 'İndiriliyor… %' + pct + ' (' + (loaded / 1048576).toFixed(1) + ' MB)';
+  };
+  try {
+    const jobs = [download(videoId, (l, t) => { progress.video = [l, t]; update(); })];
+    if (coverId) jobs.push(download(coverId, (l, t) => { progress.cover = [l, t]; update(); }));
+    [files.video, files.cover] = await Promise.all(jobs);
+    $('videoPreview').src = URL.createObjectURL(files.video);
+    $('progress').style.width = '100%';
+    $('status').textContent = 'Hazır. Butona dokun.';
+    $('saveAll').disabled = false;
+    $('saveVideo').disabled = false;
+    $('saveCover').disabled = !files.cover;
+  } catch (err) {
+    $('status').textContent = err instanceof TypeError
+      ? 'İnternet bağlantısı koptu. Sayfayı yenile.'
+      : err.message;
+  }
+}
+
+// iPhone'da paylaşım menüsü açılır; "Kaydet" doğrudan Fotoğraflar'a yazar.
+// Paylaşım desteklenmezse (bilgisayar) dosya normal indirilir.
+async function save(list) {
+  if (navigator.canShare && navigator.canShare({ files: list })) {
+    try { await navigator.share({ files: list }); }
+    catch (err) { if (err.name !== 'AbortError') $('status').textContent = 'Paylaşım hatası: ' + err.message; }
+    return;
+  }
+  list.forEach(f => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    a.click();
+  });
+}
+
+$('saveAll').onclick = () => save([files.cover, files.video].filter(Boolean));
+$('saveCover').onclick = () => save([files.cover]);
+$('saveVideo').onclick = () => save([files.video]);
+prepare();
+</script>
+</body>
+</html>

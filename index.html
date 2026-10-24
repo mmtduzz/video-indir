@@ -2,8 +2,13 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Video İndir</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- iPhone'da "Ana Ekrana Ekle" ile adres çubuğu olmadan uygulama gibi açılır. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BT Video">
+<meta name="theme-color" content="#16a34a">
+<title>BT Video</title>
 <style>
   :root { --bg: #f5f5f4; --card: #fff; --text: #1c1917; --muted: #78716c; --accent: #16a34a; --line: #e7e5e4; }
   @media (prefers-color-scheme: dark) {
@@ -11,7 +16,8 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, system-ui, sans-serif; }
-  main { max-width: 480px; margin: 0 auto; padding: 16px; }
+  main { max-width: 480px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
+  .summary { color: var(--muted); font-size: 14px; margin: -8px 0 16px; }
   h1 { font-size: 20px; margin: 8px 0 16px; word-break: break-word; }
   .previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .previews img, .previews video { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 12px; background: var(--line); }
@@ -39,6 +45,7 @@
 <body>
 <main id="list" hidden>
   <h1>Videolar</h1>
+  <p class="summary" id="summary"></p>
   <div id="items"></div>
   <p class="hint" id="listStatus">Yükleniyor…</p>
 </main>
@@ -79,6 +86,8 @@ async function showList() {
   try {
     const data = await fetch(apiUrl).then(r => r.json());
     $('listStatus').textContent = data.videos.length ? '' : 'Henüz video yok.';
+    const done = data.videos.filter(v => v.shared).length;
+    $('summary').textContent = (data.videos.length - done) + ' bekliyor · ' + done + ' paylaşıldı';
     data.videos.forEach(v => {
       const q = { api, v: v.id, n: v.name, s: v.shared ? '1' : '0' };
       if (v.cover) q.k = v.cover;

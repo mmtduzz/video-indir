@@ -24,10 +24,26 @@
   .secondary { background: var(--card); color: var(--text); border: 1px solid var(--line); font-weight: 500; font-size: 15px; padding: 12px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .hint { color: var(--muted); font-size: 13px; margin-top: 16px; }
+  .back { display: inline-block; color: var(--muted); text-decoration: none; font-size: 15px; padding: 4px 0; }
+  #markShared { background: var(--card); color: var(--text); border: 2px solid var(--accent); }
+  #markShared.done { background: var(--accent); color: #fff; }
+  .item { display: grid; grid-template-columns: 54px 1fr auto; gap: 12px; align-items: center; padding: 8px; margin-bottom: 8px;
+          background: var(--card); border: 1px solid var(--line); border-radius: 12px; color: var(--text); text-decoration: none; }
+  .item.done { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+  .item img, .item .noimg { width: 54px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; background: var(--line); }
+  .item span { font-weight: 600; font-size: 15px; word-break: break-word; }
+  .badge { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .item.done .badge { color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
-<main>
+<main id="list" hidden>
+  <h1>Videolar</h1>
+  <div id="items"></div>
+  <p class="hint" id="listStatus">Yükleniyor…</p>
+</main>
+<main id="detail" hidden>
+  <a class="back" id="back" hidden>← Tüm videolar</a>
   <h1 id="title">Video</h1>
   <div class="previews">
     <img id="coverPreview" alt="Kapak">
@@ -41,6 +57,7 @@
     <button class="secondary" id="saveVideo" disabled>Yalnız video</button>
   </div>
   <p class="hint">Açılan menüde <b>“2 Öğeyi Kaydet”</b> seç. Kapak ve video Fotoğraflar'a kaydedilir.</p>
+  <button id="markShared" hidden>Paylaştım ✓</button>
 </main>
 <script>
 // Drive API anahtarı. Google Cloud'da yalnız Drive API ve bu sitenin adresiyle sınırla.
@@ -50,12 +67,72 @@ const params = new URLSearchParams(location.search);
 const videoId = params.get('v');
 const coverId = params.get('k');
 const name = params.get('n') || 'video';
+// Müşteri linkindeki "api", tablonun web uygulaması kimliğidir (liste + Paylaştım).
+const api = params.get('api');
+const apiUrl = api ? 'https://script.google.com/macros/s/' + api + '/exec' : '';
 const $ = id => document.getElementById(id);
 const files = {};
+const thumb = (id, size) => 'https://drive.google.com/thumbnail?id=' + id + '&sz=w' + size;
 
-$('title').textContent = name;
-if (coverId) $('coverPreview').src = 'https://drive.google.com/thumbnail?id=' + coverId + '&sz=w800';
-else $('coverPreview').remove();
+async function showList() {
+  $('list').hidden = false;
+  try {
+    const data = await fetch(apiUrl).then(r => r.json());
+    $('listStatus').textContent = data.videos.length ? '' : 'Henüz video yok.';
+    data.videos.forEach(v => {
+      const q = { api, v: v.id, n: v.name, s: v.shared ? '1' : '0' };
+      if (v.cover) q.k = v.cover;
+      const a = document.createElement('a');
+      a.className = 'item' + (v.shared ? ' done' : '');
+      a.href = '?' + new URLSearchParams(q);
+      const img = document.createElement(v.cover ? 'img' : 'div');
+      if (v.cover) { img.src = thumb(v.cover, 200); img.loading = 'lazy'; } else img.className = 'noimg';
+      const label = document.createElement('span');
+      label.textContent = v.name;
+      const badge = document.createElement('small');
+      badge.className = 'badge';
+      badge.textContent = v.shared ? '✓ Paylaşıldı' : 'Bekliyor';
+      a.append(img, label, badge);
+      $('items').append(a);
+    });
+  } catch (err) {
+    $('listStatus').textContent = 'Liste yüklenemedi. Sayfayı yenile. (' + err.message + ')';
+  }
+}
+
+function showDetail() {
+  $('detail').hidden = false;
+  $('title').textContent = name;
+  if (coverId) $('coverPreview').src = thumb(coverId, 800);
+  else $('coverPreview').remove();
+  if (api) {
+    $('back').href = '?api=' + encodeURIComponent(api);
+    $('back').hidden = false;
+    $('markShared').hidden = false;
+    renderShared();
+  }
+  prepare();
+}
+
+let shared = params.get('s') === '1';
+function renderShared() {
+  $('markShared').textContent = shared ? '✓ Paylaşıldı (geri almak için dokun)' : 'Paylaştım ✓';
+  $('markShared').classList.toggle('done', shared);
+}
+
+$('markShared').onclick = async () => {
+  $('markShared').disabled = true;
+  try {
+    const url = apiUrl + '?action=share&id=' + encodeURIComponent(videoId) + '&value=' + !shared;
+    const res = await fetch(url).then(r => r.json());
+    if (!res.ok) throw new Error(res.error);
+    shared = !shared;
+    renderShared();
+  } catch (err) {
+    $('status').textContent = 'İşaretlenemedi, tekrar dene. (' + err.message + ')';
+  }
+  $('markShared').disabled = false;
+};
 
 // Drive hatasını kullanıcının anlayacağı mesaja çevirir. Kod, ekran görüntüsünden sorunu bulmak içindir.
 async function driveError(res) {
@@ -94,7 +171,6 @@ async function download(id, onProgress) {
 }
 
 async function prepare() {
-  if (!videoId) { $('status').textContent = 'Bağlantı hatalı: video bulunamadı.'; return; }
   const progress = { video: [0, 0], cover: [0, 0] };
   const update = () => {
     const loaded = progress.video[0] + progress.cover[0];
@@ -139,7 +215,10 @@ async function save(list) {
 $('saveAll').onclick = () => save([files.cover, files.video].filter(Boolean));
 $('saveCover').onclick = () => save([files.cover]);
 $('saveVideo').onclick = () => save([files.video]);
-prepare();
+
+if (videoId) showDetail();
+else if (api) showList();
+else { $('list').hidden = false; $('listStatus').textContent = 'Bağlantı hatalı. Yöneticiden yeni link iste.'; }
 </script>
 </body>
 </html>

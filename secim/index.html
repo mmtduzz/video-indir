@@ -2,14 +2,217 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>İçerik Seçimi</title>
-<meta http-equiv="refresh" content="0; url=https://script.google.com/macros/s/AKfycbw3l7R6wQkYl79QfuvQalOq9G95Kx5ztMgZlXGwJSv5DClmcTIu7dDK2-BKQzsPV_hSjQ/exec">
-<script>location.replace("https://script.google.com/macros/s/AKfycbw3l7R6wQkYl79QfuvQalOq9G95Kx5ztMgZlXGwJSv5DClmcTIu7dDK2-BKQzsPV_hSjQ/exec");</script>
-<style>body{font-family:system-ui,sans-serif;margin:0;padding:40px 16px;text-align:center;color:#17212b;background:#f3f5f7}a{color:#0a5c5e}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f3f5f7; --surface:#ffffff; --fg:#17212b; --muted:#5e6b78;
+    --line:#dde3e9; --accent:#0f8a8d; --accent-ink:#0a5c5e;
+    --sc:#0f8a8d; --sc-bg:#e2f2f1; --ef:#7a4fd6; --ef-bg:#ede7fb;
+    --done:#0f8a8d; --warn:#b4610f; --shadow:0 1px 2px rgba(16,32,45,.06),0 8px 24px rgba(16,32,45,.06);
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0e1419; --surface:#161f27; --fg:#e8edf1; --muted:#9aa7b2;
+    --line:#26313b; --accent:#3bc3c6; --accent-ink:#8fe0e1;
+    --sc:#3bc3c6; --sc-bg:#123032; --ef:#b49bf2; --ef-bg:#241b3d;
+    --done:#3bc3c6; --warn:#f0a35a; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);
+    font-family:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased;
+    padding-top:env(safe-area-inset-top,0px)}
+  .wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:22px 160px}
+  header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;
+    background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);
+    margin-inline:-16px;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+  .kick{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:12px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--accent-ink);margin:0}
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(22px,5vw,30px);
+    margin:2px 0 0;text-wrap:balance;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13.5px;margin:6px 0 0}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 6px}
+  .chipbtn{font:inherit;font-size:13px;cursor:pointer;border:1px solid var(--line);
+    background:var(--surface);color:var(--fg);padding:7px 13px;border-radius:999px;
+    display:inline-flex;align-items:center;gap:7px}
+  .chipbtn[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .dot.sc{background:var(--sc)} .dot.ef{background:var(--ef)}
+  ul.list{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px;
+    grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr))}
+  li.item{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow);transition:border-color .15s,opacity .15s}
+  li.item.on{border-color:var(--accent)}
+  li.item.off{opacity:.45}
+  li.item.off label.row{cursor:not-allowed}
+  li.note{grid-column:1/-1;color:var(--muted);padding:24px 4px}
+  label.row{flex:1;display:flex;align-items:flex-start;gap:13px;padding:14px 15px;cursor:pointer;min-width:0;position:relative}
+  .box{flex:none;width:23px;height:23px;margin-top:1px;border:2px solid var(--line);border-radius:7px;
+    display:grid;place-items:center;transition:background .15s,border-color .15s}
+  .item.on .box{background:var(--done);border-color:var(--done)}
+  .box svg{width:14px;height:14px;opacity:0;transition:opacity .12s}
+  .item.on .box svg{opacity:1}
+  input.cb{position:absolute;opacity:0;width:0;height:0}
+  input.cb:focus-visible + .box{outline:2px solid var(--accent);outline-offset:2px}
+  .body{min-width:0;flex:1}
+  .ttl{font-size:15.5px;font-weight:500;word-wrap:break-word}
+  .item.on .ttl{color:var(--accent-ink)}
+  .tag{display:inline-block;margin-top:6px;font-size:11.5px;font-weight:600;letter-spacing:.03em;
+    padding:3px 9px;border-radius:999px}
+  .tag.sc{color:var(--sc);background:var(--sc-bg)} .tag.ef{color:var(--ef);background:var(--ef-bg)}
+  .bar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);
+    border-top:1px solid var(--line);box-shadow:0 -6px 24px rgba(16,32,45,.1);
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+  .bar .inner{max-width:1148px;margin:0 auto}
+  .track{height:9px;border-radius:999px;background:var(--line);overflow:hidden}
+  .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--ef),var(--accent));
+    transition:width .45s cubic-bezier(.22,1,.36,1)}
+  .barfoot{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:9px}
+  .count{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .count b{font-family:"Fraunces",Georgia,serif;font-size:19px}
+  .save{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .save .pip{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+  .save.ok .pip{background:var(--done)} .save.warn .pip{background:var(--warn)}
+  .breakdown{font-size:12px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+  .breakdown.full{font-size:13.5px;font-weight:600;color:var(--warn)}
+  .modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:24px;
+    background:rgba(14,20,25,.45);opacity:0;pointer-events:none;transition:opacity .2s}
+  .modal.show{opacity:1;pointer-events:auto}
+  .modal .card{background:var(--surface);border-radius:18px;padding:26px 24px 20px;max-width:340px;width:100%;
+    text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);transform:scale(.94);transition:transform .2s}
+  .modal.show .card{transform:none}
+  .modal .big{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:21px;margin:0 0 8px;text-wrap:balance}
+  .modal .small{color:var(--muted);font-size:14px;margin:0}
+  .modal button{margin-top:20px;font:inherit;font-weight:600;font-size:15px;background:var(--accent);color:#fff;
+    border:0;border-radius:999px;padding:11px 32px;cursor:pointer}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
 </head>
 <body>
-<p>İçerik seçim sayfası açılıyor…</p>
-<p><a href="https://script.google.com/macros/s/AKfycbw3l7R6wQkYl79QfuvQalOq9G95Kx5ztMgZlXGwJSv5DClmcTIu7dDK2-BKQzsPV_hSjQ/exec">Açılmazsa buraya dokunun</a></p>
+<div class="wrap">
+  <header class="top">
+    <p class="kick">Op. Dr. Bülent Tekerekoğlu</p>
+    <h1 id="baslik">Bu ayın hazırlanacakları</h1>
+    <p class="sub" id="sub">Hazırlamak istediklerinizi işaretleyin. Seçiminiz otomatik kaydedilir.</p>
+    <div class="filters" id="filters">
+      <button class="chipbtn" data-f="all" aria-pressed="true">Tümü</button>
+      <button class="chipbtn" data-f="ef" aria-pressed="false"><span class="dot ef"></span>Efsane-Gerçek</button>
+      <button class="chipbtn" data-f="sc" aria-pressed="false"><span class="dot sc"></span>Soru-Cevap</button>
+      <button class="chipbtn" data-f="on" aria-pressed="false">Seçilenler</button>
+    </div>
+  </header>
+  <ul class="list" id="list"><li class="note">Liste yükleniyor…</li></ul>
+</div>
+
+<div class="bar">
+  <div class="inner">
+    <div class="track"><div class="fill" id="fill"></div></div>
+    <div class="barfoot">
+      <span class="count"><b id="n">0</b> / <span id="total">5</span> içerik seçildi</span>
+      <span class="save" id="save"><span class="pip"></span><span id="savetxt">yükleniyor…</span></span>
+    </div>
+    <div class="breakdown" id="bd"></div>
+  </div>
+</div>
+
+<div class="modal" id="modal" role="alertdialog" aria-modal="true" aria-labelledby="mt">
+  <div class="card">
+    <p class="big" id="mt">Bu ay için 5 seçim yaptınız.</p>
+    <p class="small">Değiştirmek isterseniz önce bir seçimin işaretini kaldırın.</p>
+    <button type="button" id="mok">Tamam</button>
+  </div>
+</div>
+
+<script>
+// Veri Apps Script web uygulamasından JSON olarak gelir (apps-script/secim/Code.gs).
+var API="https://script.google.com/macros/s/AKfycbw3l7R6wQkYl79QfuvQalOq9G95Kx5ztMgZlXGwJSv5DClmcTIu7dDK2-BKQzsPV_hSjQ/exec";
+var CLS={"Efsane-Gerçek":"ef","Soru-Cevap":"sc"};
+var S=null, filter="all", busy=0;
+
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function cls(it){return CLS[it.k]||"sc";}
+function full(){return S.secilenler.length>=S.limit;}
+function items(){
+  var a=S.secilenler.map(function(it){it.on=true;return it;}).concat(S.liste.map(function(it){it.on=false;return it;}));
+  return a.sort(function(x,y){return x.sira-y.sira;});
+}
+function itemHTML(it){
+  var off=!it.on&&full();
+  return '<li class="item'+(it.on?' on':'')+(off?' off':'')+'" data-id="'+esc(it.id)+'">'+
+    '<label class="row"><input class="cb" type="checkbox" '+(it.on?'checked ':'')+(off?'disabled ':'')+'aria-label="'+esc(it.t)+'">'+
+    '<span class="box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span>'+
+    '<span class="body"><span class="ttl">'+esc(it.t)+'</span><br><span class="tag '+cls(it)+'">'+esc(it.k)+'</span></span></label></li>';
+}
+function render(){
+  var vis=items().filter(function(it){return filter==="all"?true:filter==="on"?it.on:cls(it)===filter;});
+  document.getElementById('list').innerHTML=vis.length?vis.map(itemHTML).join(""):'<li class="note">Bu filtrede içerik yok.</li>';
+  updateBar();
+}
+function updateBar(){
+  var n=S.secilenler.length, bd=document.getElementById('bd');
+  document.getElementById('n').textContent=n;
+  document.getElementById('total').textContent=S.limit;
+  document.getElementById('fill').style.width=(n/S.limit*100)+"%";
+  var ef=0,sc=0; S.secilenler.forEach(function(it){cls(it)==="ef"?ef++:sc++;});
+  bd.className="breakdown"+(full()?" full":"");
+  bd.textContent=full()?"Bu ay için "+S.limit+" seçim yaptınız."
+    :n?(ef+" Efsane-Gerçek · "+sc+" Soru-Cevap · "+(S.limit-n)+" seçim hakkınız kaldı"):"Henüz seçim yok";
+}
+function uyar(){
+  document.getElementById('mt').textContent="Bu ay için "+S.limit+" seçim yaptınız.";
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('mok').focus();
+}
+function kapat(){document.getElementById('modal').classList.remove('show');}
+function setSave(state,txt){var s=document.getElementById('save');s.className="save"+(state?" "+state:"");document.getElementById('savetxt').textContent=txt;}
+function apply(res){
+  S=res;
+  document.getElementById('baslik').textContent=res.ay+" ayı — hazırlanacaklar";
+  document.getElementById('sub').textContent="Bu ay en fazla "+res.limit+" içerik seçebilirsiniz. Seçiminiz otomatik kaydedilir.";
+  document.title=res.ay+" İçerik Seçimi";
+  render();
+}
+function get(q){return fetch(API+q).then(function(r){return r.json();});}
+function load(){
+  get("")
+    .then(function(res){apply(res);setSave("ok","hazır");})
+    .catch(function(){setSave("warn","liste yüklenemedi, sayfayı yenileyin");});
+}
+
+document.getElementById('list').addEventListener('click',function(e){
+  if(e.target.closest('li.item.off')){e.preventDefault();uyar();}
+});
+document.getElementById('mok').addEventListener('click',kapat);
+document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)kapat();});
+document.getElementById('list').addEventListener('change',function(e){
+  var cb=e.target; if(!cb.classList.contains('cb'))return;
+  var id=cb.closest('li.item').getAttribute('data-id'), on=cb.checked;
+  if(on&&full()){cb.checked=false;uyar();return;}
+  var from=on?S.liste:S.secilenler, to=on?S.secilenler:S.liste;
+  for(var i=0;i<from.length;i++){if(from[i].id===id){to.push(from.splice(i,1)[0]);break;}}
+  render(); if(full())uyar();
+  setSave(null,"kaydediliyor…"); busy++;
+  get("?action=toggle&id="+encodeURIComponent(id)+"&secili="+(on?1:0))
+    .then(function(res){
+      busy--; if(!busy)apply(res);
+      if(res.hata){setSave("warn","Bu ay için "+res.limit+" seçim yaptınız");uyar();}else{setSave("ok","kaydedildi");}
+    })
+    .catch(function(){busy--;setSave("warn","kaydedilemedi, tekrar deneyin");load();});
+});
+document.getElementById('filters').addEventListener('click',function(e){
+  var b=e.target.closest('.chipbtn'); if(!b||!S)return;
+  filter=b.getAttribute('data-f');
+  var all=document.querySelectorAll('.chipbtn');
+  for(var i=0;i<all.length;i++){all[i].setAttribute('aria-pressed',all[i]===b?'true':'false');}
+  render();
+});
+
+load();
+</script>
 </body>
 </html>

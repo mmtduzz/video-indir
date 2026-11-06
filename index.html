@@ -56,6 +56,7 @@
   </div>
   <div id="items"></div>
   <p class="hint" id="listStatus">Yükleniyor…</p>
+  <p class="hint" id="syncStatus"></p>
 </main>
 <main id="detail" hidden>
   <a class="back" id="back" hidden>← Tüm videolar</a>
@@ -93,6 +94,8 @@ const thumb = (id, size) => 'https://drive.google.com/thumbnail?id=' + id + '&sz
 let tab = params.get('sekme') === 'paylasildi' ? 'paylasildi' : 'bekliyor';
 let videos = [];
 
+// Önce tablodaki liste hemen gösterilir; sonra tablo servisi Drive klasörünü tarar ("action=sync") ve liste yenilenir.
+// Böylece Drive'a yeni yüklenen video 10 dakikalık otomatik taramayı beklemez.
 async function showList() {
   $('list').hidden = false;
   try {
@@ -102,6 +105,13 @@ async function showList() {
   } catch (err) {
     $('listStatus').textContent = 'Liste yüklenemedi. Sayfayı yenile. (' + err.message + ')';
   }
+  $('syncStatus').textContent = 'Drive\'daki yeni videolar kontrol ediliyor…';
+  try {
+    videos = (await fetch(apiUrl + '?action=sync').then(r => r.json())).videos;
+    $('tabs').hidden = false;
+    renderList();
+  } catch (err) {}
+  $('syncStatus').textContent = '';
 }
 
 $('tabWaiting').onclick = () => { tab = 'bekliyor'; renderList(); };

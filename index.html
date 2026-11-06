@@ -17,7 +17,6 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, system-ui, sans-serif; }
   main { max-width: 480px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
-  .summary { color: var(--muted); font-size: 14px; margin: -8px 0 16px; }
   h1 { font-size: 20px; margin: 8px 0 16px; word-break: break-word; }
   .previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .previews img, .previews video { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 12px; background: var(--line); }
@@ -40,12 +39,21 @@
   .item span { font-weight: 600; font-size: 15px; word-break: break-word; }
   .badge { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .item.done .badge { color: var(--accent); font-weight: 600; }
+  /* Açılışta paylaşılacaklar; paylaşılanlar kendi sekmesinde (kullanıcı, 06.11.2026). */
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--line); border-radius: 12px; margin-bottom: 8px; }
+  .tabs button { margin: 0; padding: 10px 6px; font: 600 15px/1.2 inherit; border-radius: 9px; background: transparent; color: var(--muted); }
+  .tabs button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  .month { font-size: 13px; font-weight: 700; letter-spacing: .12em; color: var(--muted); margin: 20px 0 8px; }
+  .month small { font-weight: 500; letter-spacing: .04em; }
 </style>
 </head>
 <body>
 <main id="list" hidden>
   <h1>Videolar</h1>
-  <p class="summary" id="summary"></p>
+  <div class="tabs" id="tabs" hidden>
+    <button id="tabWaiting">Paylaşılacak</button>
+    <button id="tabShared">Paylaşıldı</button>
+  </div>
   <div id="items"></div>
   <p class="hint" id="listStatus">Yükleniyor…</p>
 </main>
@@ -81,32 +89,63 @@ const $ = id => document.getElementById(id);
 const files = {};
 const thumb = (id, size) => 'https://drive.google.com/thumbnail?id=' + id + '&sz=w' + size;
 
+// Sekme adreste durur: detaydan "← Tüm videolar" aynı sekmeye döner.
+let tab = params.get('sekme') === 'paylasildi' ? 'paylasildi' : 'bekliyor';
+let videos = [];
+
 async function showList() {
   $('list').hidden = false;
   try {
-    const data = await fetch(apiUrl).then(r => r.json());
-    $('listStatus').textContent = data.videos.length ? '' : 'Henüz video yok.';
-    const done = data.videos.filter(v => v.shared).length;
-    $('summary').textContent = (data.videos.length - done) + ' bekliyor · ' + done + ' paylaşıldı';
-    data.videos.forEach(v => {
-      const q = { api, v: v.id, n: v.name, s: v.shared ? '1' : '0' };
-      if (v.cover) q.k = v.cover;
-      const a = document.createElement('a');
-      a.className = 'item' + (v.shared ? ' done' : '');
-      a.href = '?' + new URLSearchParams(q);
-      const img = document.createElement(v.cover ? 'img' : 'div');
-      if (v.cover) { img.src = thumb(v.cover, 200); img.loading = 'lazy'; } else img.className = 'noimg';
-      const label = document.createElement('span');
-      label.textContent = v.name;
-      const badge = document.createElement('small');
-      badge.className = 'badge';
-      badge.textContent = v.shared ? '✓ Paylaşıldı' : 'Bekliyor';
-      a.append(img, label, badge);
-      $('items').append(a);
-    });
+    videos = (await fetch(apiUrl).then(r => r.json())).videos;
+    $('tabs').hidden = false;
+    renderList();
   } catch (err) {
     $('listStatus').textContent = 'Liste yüklenemedi. Sayfayı yenile. (' + err.message + ')';
   }
+}
+
+$('tabWaiting').onclick = () => { tab = 'bekliyor'; renderList(); };
+$('tabShared').onclick = () => { tab = 'paylasildi'; renderList(); };
+
+// Videolar tabloda yeniden eskiye sıralı gelir; ay değişince başlık konur ("KASIM 2026").
+function renderList() {
+  const shared = videos.filter(v => v.shared);
+  const list = tab === 'paylasildi' ? shared : videos.filter(v => !v.shared);
+  $('tabWaiting').textContent = 'Paylaşılacak · ' + (videos.length - shared.length);
+  $('tabShared').textContent = 'Paylaşıldı · ' + shared.length;
+  $('tabWaiting').classList.toggle('on', tab === 'bekliyor');
+  $('tabShared').classList.toggle('on', tab === 'paylasildi');
+  history.replaceState(null, '', '?' + new URLSearchParams(tab === 'paylasildi' ? { api, sekme: tab } : { api }));
+  $('items').replaceChildren();
+  $('listStatus').textContent = list.length ? '' : (tab === 'paylasildi' ? 'Henüz paylaşılan video yok.' : 'Paylaşılacak video yok.');
+  let month = '';
+  list.forEach(v => {
+    if (v.month && v.month !== month) {
+      month = v.month;
+      const [name, year] = month.split(' ');
+      const h = document.createElement('h2');
+      h.className = 'month';
+      h.append(name + ' ');
+      const y = document.createElement('small');
+      y.textContent = year || '';
+      h.append(y);
+      $('items').append(h);
+    }
+    const q = { api, v: v.id, n: v.name, s: v.shared ? '1' : '0', sekme: tab };
+    if (v.cover) q.k = v.cover;
+    const a = document.createElement('a');
+    a.className = 'item' + (v.shared ? ' done' : '');
+    a.href = '?' + new URLSearchParams(q);
+    const img = document.createElement(v.cover ? 'img' : 'div');
+    if (v.cover) { img.src = thumb(v.cover, 200); img.loading = 'lazy'; } else img.className = 'noimg';
+    const label = document.createElement('span');
+    label.textContent = v.name;
+    const badge = document.createElement('small');
+    badge.className = 'badge';
+    badge.textContent = v.shared ? '✓ Paylaşıldı' : 'Bekliyor';
+    a.append(img, label, badge);
+    $('items').append(a);
+  });
 }
 
 function showDetail() {
@@ -115,7 +154,7 @@ function showDetail() {
   if (coverId) $('coverPreview').src = thumb(coverId, 800);
   else $('coverPreview').remove();
   if (api) {
-    $('back').href = '?api=' + encodeURIComponent(api);
+    $('back').href = '?' + new URLSearchParams(params.get('sekme') === 'paylasildi' ? { api, sekme: 'paylasildi' } : { api });
     $('back').hidden = false;
     $('markShared').hidden = false;
     renderShared();
